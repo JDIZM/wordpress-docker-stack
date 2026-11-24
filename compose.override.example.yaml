@@ -1,0 +1,8 @@
+# Copy to compose.override.yaml (gitignored) to mount more code that lives in its own repository,
+# beyond the one theme and one plugin that .env names. Docker Compose reads it automatically.
+services:
+  wordpress:
+    volumes: &extra
+      - ../another-plugin:/var/www/html/wp-content/plugins/another-plugin
+  cli:
+    volumes: *extra

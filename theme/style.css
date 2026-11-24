@@ -1,0 +1,15 @@
+/*
+Theme Name: Starter Theme
+Description: The smallest theme that works. Replace it with yours.
+Version: 0.1.0
+Requires at least: 6.5
+Requires PHP: 8.1
+Text Domain: starter-theme
+*/
+
+body {
+  font: 18px/1.6 system-ui, sans-serif;
+  max-width: 42rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
