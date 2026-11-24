@@ -27,6 +27,7 @@ services:
       WORDPRESS_DEBUG: ${WP_DEBUG:-}
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_ENVIRONMENT_TYPE', 'local');
+        define('WP_MEMORY_LIMIT', '${WP_MEMORY_LIMIT:-256M}');
     volumes: &wp-volumes
       # WordPress core lives in a named volume. It never goes in git.
       - wordpress:/var/www/html
