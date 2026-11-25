@@ -1,0 +1,60 @@
+# Local WordPress for theme and plugin work. Not for production.
+services:
+  db:
+    image: mariadb:${MARIADB_TAG:-11.4}
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: ${DB_PASSWORD:-local-only}
+      MARIADB_RANDOM_ROOT_PASSWORD: '1'
+    volumes: [database:/var/lib/mysql]
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 3s
+      retries: 30
+
+  wordpress:
+    image: wordpress:${WORDPRESS_TAG:-php8.3-apache}
+    ports: ['127.0.0.1:${WP_PORT:-8080}:80']
+    depends_on:
+      db: {condition: service_healthy}
+    environment: &wp-env
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:-local-only}
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
+      WORDPRESS_DEBUG: ${WP_DEBUG:-}
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('WP_MEMORY_LIMIT', '${WP_MEMORY_LIMIT:-256M}');
+    volumes: &wp-volumes
+      # WordPress core lives in a named volume. It never goes in git.
+      - wordpress:/var/www/html
+      # Third-party themes and plugins, and uploads.
+      - ${WP_CONTENT_DIR:-./wp-content}:/var/www/html/wp-content
+      # The theme and the plugin you are building.
+      - ${THEME_DIR:-./theme}:/var/www/html/wp-content/themes/${THEME_SLUG:-starter-theme}
+      - ${PLUGIN_DIR:-./plugin}:/var/www/html/wp-content/plugins/${PLUGIN_SLUG:-starter-plugin}
+      # Sends all mail to Mailpit.
+      - ./mu-plugins/local-mail.php:/var/www/html/wp-content/mu-plugins/local-mail.php:ro
+
+  # WP-CLI, run on demand: docker compose run --rm cli plugin list
+  cli:
+    image: wordpress:${WP_CLI_TAG:-cli-php8.3}
+    entrypoint: ['wp']
+    user: '33:33'
+    environment: *wp-env
+    volumes: *wp-volumes
+    depends_on:
+      wordpress: {condition: service_started}
+    profiles: [tools]
+
+  # Catches every email WordPress sends. Inbox: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:${MAILPIT_TAG:-v1.33.1}
+    ports: ['127.0.0.1:${MAIL_PORT:-8025}:8025']
+
+volumes:
+  database:
+  wordpress:

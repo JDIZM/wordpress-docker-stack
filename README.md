@@ -1,184 +1,102 @@
-# DOCKER-WP
+# WordPress Docker Stack
 
-using docker compose to build a container with
+A local WordPress for building a theme and a plugin. One command starts it. It is for development on your own machine, not for production.
 
-* nginx
-* wordpress
-* mysql
-* mailhog
-* underscores starter theme
-* wp-cli
-* letsencrypt 
-* certbot
+![Docker runs WordPress, MariaDB, WP-CLI and Mailpit. The theme folder, the plugin folder and wp-content are mounted into WordPress.](docs/three-parts.svg)
 
-`/wp-content/` will be mapped to the container for easy access to the theme files and content.
+## The three parts
 
-Read the official docs for the respective docker images
-- [Wordpress](https://hub.docker.com/_/wordpress)
-- [MySQL](https://hub.docker.com/_/mysql)
-- [nginx](https://hub.docker.com/_/nginx)
-- [mailhog](https://hub.docker.com/r/mailhog/mailhog/)
-- [certbot](https://hub.docker.com/r/certbot/certbot/)
+| Part | Folder | What it holds |
+| --- | --- | --- |
+| 1. The stack | `compose.yaml`, `scripts/` | WordPress (the official image), MariaDB, WP-CLI and Mailpit. WordPress core lives in a Docker volume and never goes in git. |
+| 2. The theme | `theme/` | What the site looks like. It starts as a three-file starter theme. |
+| 3. The plugin | `plugin/` | Data, settings and API routes. It starts as one REST route. |
 
-Setting up SSL is optional and can be configured after setting up standard http.
+`wp-content/` holds everything you did not write: third-party plugins and themes, and uploads. Git ignores what is in it.
 
-For development Mailhog will catch all email sent from wordpress and serve as an inbox to test.
+## Start
 
-In the `docker-compose` file comment out mailhog and uncomment certbot for production and SSL setup.
-## SETUP
+You need Docker.
 
-```
-# start containers
-docker-compose up -d
-
-# stop containers
-docker-compose down
-
-# stop containers and remove all volumes 
-docker-compose down -v
-
-# build images on start
-docker-compose up --build
+```sh
+cp .env.example .env     # optional: every value has a default
+bash scripts/setup.sh
 ```
 
-Once containers are running load up the browser `http://127.0.0.1` 
+- Site: <http://localhost:8080>
+- Admin: <http://localhost:8080/wp-admin/>, **admin / password** (local only)
+- Mail inbox: <http://localhost:8025>
+- The plugin's route: <http://localhost:8080/wp-json/starter/v1/ping>
 
-Install wordpress it will use the db settings from the .env so you won't have to enter them. The installation will persist on `db_data` volume until its removed. As you can see from the `docker-compose.yml` we are referencing the container name `db` as the wordpress containers `DB_HOST` this will connect both containers without having to expose any ports.
+`setup.sh` installs WordPress, turns on pretty permalinks, and activates the starter theme and plugin. You can run it again: it does not reinstall or reset anything.
 
-You can [deploy to docker swarm](https://docs.docker.com/engine/swarm/stack-deploy/) if you want to run containers on multiple hosts at the same time but this will require the images to be hosted on a registry like Docker Hub.
+## Build your own theme and plugin
 
-```
-# deploying to swarm
-docker stack deploy -c docker-compose.yml docker-wp
-```
-## FILE PERMISSIONS
+Edit `theme/` and `plugin/` in place. WordPress reads the files directly, so a change shows on the next page load.
 
-Set the file permissions of the `wp-content` folder, since they are mounted from the host. Otherwise you will notice issues updating plugins.
-```
-chown -R www-data:www-data /var/www/html/wp-content
-```
+If your code lives in its own repository, point the stack at it in `.env`:
 
-## EXPORTING MYSQL DATABASE
-
-The wordpress user created with this build won't have permissions to export the database you will need to use root.
-
-From the official mysql docker image https://hub.docker.com/_/mysql when `MYSQL_RANDOM_ROOT_PASSWORD` is set to true "The generated root password will be printed to stdout (GENERATED ROOT PASSWORD: .....)." You can view your docker container log when the db image first boots up to get the root password.
-
-Uncomment this line in the docker-compose file if you want to set a custom root password:
-```
-MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT}
-```
-set the .env var `MYSQL_ROOT` with your desired root password. You can also save the randomly generated root password in .env for safe keeping.
-
-Steps to export and import the mysql database:
-```
-# get the container id
-docker ps
-
-# gain a shell to the db container
-docker exec -it containerid /bin/bash
-
-# export the wp database
-mysqldump -u root -p wordpress > backup.sql
-
-# then enter your root password on prompt
-# check the backup.sql file has been created
-ls
-
-# copy from docker container
-docker cp container:./backup.sql ./backup.sql 
-
-# copy to docker container
-docker cp ./import.sql container:./import.sql
-
-# import existing database dump
-mysql -u root -p < import.sql
-```
-## SMTP & EMAIL
-
-* wp-mail-smtp plugin
-
-Setup the plugin and configure smtp settings to handle mail.
-
-### MAILHOG & PHPMAILER FOR LOCAL EMAIL TESTING
-
-* composer is installed
-* phpmailer is installed
-* mailhog is running on `http://localhost:8025` and catches mail on port 1025
-
-We need to configure wordpress to route the mail to mailhog. I've found the solution between these two sources:
-
-* https://gist.github.com/eduwass/039864b7dca85f06c3883b6fab0f7f2e
-* https://developer.wordpress.org/reference/hooks/phpmailer_init/
-  
-#### STEPS TO CONFIGURE MAILHOG
-
-1. edit the theme functions file to configure the local smtp settings at `/var/www/html/wp-content/themes/_s/functions.php`
-
-add the following code to the theme functions.php file
-
-```php
-/* MAILHOG SMTP */
-function my_phpmailer_example( $phpmailer ) {
-  $phpmailer->isSMTP();     
-  $phpmailer->Host = 'mailhog';
-  $phpmailer->Port = 1025;
-}
-add_action( 'phpmailer_init', 'my_phpmailer_example' );
+```sh
+THEME_DIR=../my-theme
+THEME_SLUG=my-theme
+PLUGIN_DIR=../my-plugin
+PLUGIN_SLUG=my-plugin
 ```
 
-This will configure phpmailer to use mailhog with port 1025
+The slug is the folder name WordPress sees. To mount more than one theme or plugin, copy `compose.override.example.yaml` to `compose.override.yaml`.
 
-Note: I've tried automating this on the build of the dockerfile see **mailhog-config.sh** but this causes issues on build.
+## Copy an existing site
 
-1. get a shell to the container
-1. `cd /var/www/html`
-1. activate the theme (with modified functions.php) `wp theme activate _s --allow-root`
-1. activate the wp-mail-smtp plugin  `wp plugin activate wp-mail-smtp --allow-root`
-1. Send a test mail from the plugin dashboard `http://localhost/wp-admin/admin.php?page=wp-mail-smtp&tab=test`
-1. check mailhog caught it! `http://localhost:8025/`
+To run a copy of a site that already exists, you need three things from it: a database dump, its `plugins` folder and its `uploads` folder.
 
-### MAILGUN FOR PRODUCTION
+1. Put the plugins in `wp-content/plugins/` and the uploads in `wp-content/uploads/`.
+2. Set the versions in `.env` to match the site: `WORDPRESS_TAG` and `WP_CLI_TAG`, with the same PHP version in both. Do this before the first start. WordPress core is copied into a Docker volume once, so a new tag after that changes PHP but not WordPress. To change WordPress later, run `bash scripts/reset.sh DELETE` first.
+3. Load the database:
 
-configure the wp-mail-smtp plugin with your mailgun settings
-
-* private API key
-* domain
-
-## WP REST API
-
-* enable permalinks
-* `http://localhost/wp-json/wp/v2`
-
-## SSL config
-
-#### 1. make sure your domain has a DNS A record pointing to the server ip.
-
-#### 2. uncomment certbot in the docker compose file.
-
-#### 3. Edit the command line in the docker compose file to include your domain and email
-```
-command: certonly --webroot --webroot-path=/var/www/certbot --email your-email@domain.com --agree-tos --no-eff-email -d domain.com -d www.domain.com
-```
-#### 4. start the containers as normal
-
-```
-docker-compose up -d
+```sh
+bash scripts/import.sh path/to/dump.sql.gz
 ```
 
-#### 5. certbot should get a certificate for your domain
+`import.sh` empties the local database, loads the dump, then rewrites the old site address to your local one. The site keeps the theme and plugins its database names, and its own admin users. If the dump uses a table prefix other than `wp_`, the script tells you which one to set.
 
-#### 6. edit the location of your keychain in the `ssl.conf`
-```
-# ssl_certificate /etc/letsencrypt/live/mysite.com/fullchain.pem;
-# ssl_certificate_key /etc/letsencrypt/live/mysite.com/privkey.pem;
+⚠️ A database dump can hold personal data. Keep dumps in `dumps/` or in the repository root: git ignores `dumps/` and, in the root, `*.sql`, `*.sql.*`, `*.gz` and `*.zip`. Never commit one.
+
+⚠️ A copied site can bring its own mail plugin and its live mail settings. A plugin that sends through a provider's own service does not pass through Mailpit, so it can reach real people. Before you test anything that sends mail, look at the active plugins and switch mail plugins off: `docker compose run --rm cli plugin deactivate <name>`.
+
+## Commands
+
+```sh
+docker compose ps                              # what is running
+docker compose logs --tail=50 wordpress        # WordPress and PHP errors
+docker compose run --rm cli plugin list        # any WP-CLI command
+mkdir -p dumps && docker compose run --rm -T cli db export - > dumps/local.sql
+docker compose stop                            # stop, keep everything
+bash scripts/reset.sh DELETE                   # delete the database and WordPress core
 ```
 
-#### 7. make a copy of the default.conf and replace it with the ssl.conf
-```
-cd nginx
-cp default.conf backup.conf
-cat ssl.conf > default.conf 
+`reset.sh` leaves `theme/`, `plugin/` and `wp-content/` alone.
+
+## Run two sites at once
+
+Clone the repository twice, and give each copy its own name and ports in `.env`:
+
+```sh
+COMPOSE_PROJECT_NAME=second-site
+WP_PORT=8081
+MAIL_PORT=8026
 ```
 
-Now we can start the containers again using the ssl certificates certbot just created for the domain name and email we specified in the compose file.
+## Email
+
+Every email sent through WordPress's own mailer goes to Mailpit, not to a real inbox. `mu-plugins/local-mail.php` does this. A plugin that sends mail another way is not caught: see the warning under [Copy an existing site](#copy-an-existing-site).
+
+## Known limits
+
+- **Linux is not tested.** The stack was built and run on macOS. On Linux the containers write files as user 33, and your folders belong to you. If WordPress cannot write to `wp-content/`, run `sudo chown -R 33:33 wp-content`.
+- **Scheduled tasks do not run on their own.** WordPress starts them by calling its own address, and inside the container nothing answers on `localhost:8080`. Run the due ones by hand: `docker compose run --rm cli cron event run --due-now`. Site Health shows a loopback error for the same reason.
+- **WordPress writes into `wp-content/` on the first start:** its default themes and two plugins. If `WP_CONTENT_DIR` points at a folder someone gave you, it writes there too.
+- **`.env` is read as a shell file** by the scripts. Put quotes around a value that has a space.
+
+## Not for production
+
+The ports listen on your own machine only, the passwords are fixed, and there is no HTTPS. Before 2026 this repository held an nginx, Let's Encrypt and MySQL 5.7 set-up for hosting; that version is in the git history.

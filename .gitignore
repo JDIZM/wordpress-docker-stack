@@ -1,20 +1,24 @@
-# keep .env private
+# Local settings and mounts
 .env
+compose.override.yaml
+compose.override.yml
 
-# ignore default themes
-wp-content/themes/twentytwentyone
-wp-content/themes/twentytwenty
-wp-content/themes/twentynineteen
-wp-content/themes/twentyseventeen
+# Themes, plugins and uploads are yours: none of them are committed here.
+/wp-content/*
+!/wp-content/themes/
+!/wp-content/plugins/
+!/wp-content/uploads/
+/wp-content/themes/*
+/wp-content/plugins/*
+/wp-content/uploads/*
+!/wp-content/themes/.gitkeep
+!/wp-content/plugins/.gitkeep
+!/wp-content/uploads/.gitkeep
 
-# wp-config shouldn't be copied for security
-wp-config.php
-
-# exclude content and plugins
-wp-content/plugins
-wp-content/uploads
-wp-content/upgrade
-
-# exception to the rule
-!wp-content/plugins/.gitkeep 
-!wp-content/uploads/.gitkeep 
+# Database dumps and site archives can hold personal data and licensed code. Never commit one.
+# Keep them in dumps/ or in the repository root, where these rules catch them.
+/dumps/
+/*.sql
+/*.sql.*
+/*.gz
+/*.zip
