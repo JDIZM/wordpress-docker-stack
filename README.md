@@ -50,16 +50,18 @@ The slug is the folder name WordPress sees. To mount more than one theme or plug
 To run a copy of a site that already exists, you need three things from it: a database dump, its `plugins` folder and its `uploads` folder.
 
 1. Put the plugins in `wp-content/plugins/` and the uploads in `wp-content/uploads/`.
-2. Set the WordPress and PHP versions in `.env` to match the site (`WORDPRESS_TAG`).
+2. Set the versions in `.env` to match the site: `WORDPRESS_TAG` and `WP_CLI_TAG`, with the same PHP version in both. Do this before the first start. WordPress core is copied into a Docker volume once, so a new tag after that changes PHP but not WordPress. To change WordPress later, run `bash scripts/reset.sh DELETE` first.
 3. Load the database:
 
 ```sh
 bash scripts/import.sh path/to/dump.sql.gz
 ```
 
-`import.sh` replaces the local database, then rewrites the old site address to your local one. The site keeps the theme and plugins its database names, and its own admin users. If the dump uses a table prefix other than `wp_`, the script tells you which one to set.
+`import.sh` empties the local database, loads the dump, then rewrites the old site address to your local one. The site keeps the theme and plugins its database names, and its own admin users. If the dump uses a table prefix other than `wp_`, the script tells you which one to set.
 
-⚠️ A database dump can hold personal data. Git ignores `*.sql`, `*.sql.gz` and `dumps/` here. Never commit one.
+⚠️ A database dump can hold personal data. Keep dumps in `dumps/` or in the repository root: git ignores `dumps/` and, in the root, `*.sql`, `*.sql.*`, `*.gz` and `*.zip`. Never commit one.
+
+⚠️ A copied site can bring its own mail plugin and its live mail settings. A plugin that sends through a provider's own service does not pass through Mailpit, so it can reach real people. Before you test anything that sends mail, look at the active plugins and switch mail plugins off: `docker compose run --rm cli plugin deactivate <name>`.
 
 ## Commands
 
@@ -67,7 +69,7 @@ bash scripts/import.sh path/to/dump.sql.gz
 docker compose ps                              # what is running
 docker compose logs --tail=50 wordpress        # WordPress and PHP errors
 docker compose run --rm cli plugin list        # any WP-CLI command
-docker compose run --rm cli db export - > dumps/local.sql
+mkdir -p dumps && docker compose run --rm -T cli db export - > dumps/local.sql
 docker compose stop                            # stop, keep everything
 bash scripts/reset.sh DELETE                   # delete the database and WordPress core
 ```
@@ -86,7 +88,14 @@ MAIL_PORT=8026
 
 ## Email
 
-Every email WordPress sends goes to Mailpit, not to a real inbox. `mu-plugins/local-mail.php` does this. Nothing leaves your machine.
+Every email sent through WordPress's own mailer goes to Mailpit, not to a real inbox. `mu-plugins/local-mail.php` does this. A plugin that sends mail another way is not caught: see the warning under [Copy an existing site](#copy-an-existing-site).
+
+## Known limits
+
+- **Linux is not tested.** The stack was built and run on macOS. On Linux the containers write files as user 33, and your folders belong to you. If WordPress cannot write to `wp-content/`, run `sudo chown -R 33:33 wp-content`.
+- **Scheduled tasks do not run on their own.** WordPress starts them by calling its own address, and inside the container nothing answers on `localhost:8080`. Run the due ones by hand: `docker compose run --rm cli cron event run --due-now`. Site Health shows a loopback error for the same reason.
+- **WordPress writes into `wp-content/` on the first start:** its default themes and two plugins. If `WP_CONTENT_DIR` points at a folder someone gave you, it writes there too.
+- **`.env` is read as a shell file** by the scripts. Put quotes around a value that has a space.
 
 ## Not for production
 
