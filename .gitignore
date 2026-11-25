@@ -1,13 +1,24 @@
 # Local settings and mounts
 .env
 compose.override.yaml
+compose.override.yml
 
 # Themes, plugins and uploads are yours: none of them are committed here.
-wp-content/**
-!wp-content/**/
-!wp-content/**/.gitkeep
+/wp-content/*
+!/wp-content/themes/
+!/wp-content/plugins/
+!/wp-content/uploads/
+/wp-content/themes/*
+/wp-content/plugins/*
+/wp-content/uploads/*
+!/wp-content/themes/.gitkeep
+!/wp-content/plugins/.gitkeep
+!/wp-content/uploads/.gitkeep
 
-# Database dumps can hold personal data. Never commit one.
-dumps/
-*.sql
-*.sql.gz
+# Database dumps and site archives can hold personal data and licensed code. Never commit one.
+# Keep them in dumps/ or in the repository root, where these rules catch them.
+/dumps/
+/*.sql
+/*.sql.*
+/*.gz
+/*.zip

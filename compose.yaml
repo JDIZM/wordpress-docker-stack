@@ -52,7 +52,7 @@ services:
 
   # Catches every email WordPress sends. Inbox: http://localhost:8025
   mailpit:
-    image: axllent/mailpit:${MAILPIT_TAG:-latest}
+    image: axllent/mailpit:${MAILPIT_TAG:-v1.33.1}
     ports: ['127.0.0.1:${MAIL_PORT:-8025}:8025']
 
 volumes:

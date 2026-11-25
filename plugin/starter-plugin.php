@@ -15,6 +15,7 @@ if (!defined('ABSPATH')) {
 add_action('rest_api_init', function () {
     register_rest_route('starter/v1', '/ping', [
         'methods' => 'GET',
+        // Open to everyone, which is fine for a route that returns no data. Check the user for anything else.
         'permission_callback' => '__return_true',
         'callback' => fn() => ['ok' => true, 'time' => gmdate('c')],
     ]);

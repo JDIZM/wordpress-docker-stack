@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load a database dump from another site and point it at this stack.
 # Usage: scripts/import.sh path/to/dump.sql[.gz] [old-site-url]
-# It replaces the local database. Give the old URL only if the script cannot read it from the dump.
+# It empties the local database first. Give the old URL only if the script cannot read it from the dump.
 set -euo pipefail
 dump=${1:?Usage: scripts/import.sh path/to/dump.sql[.gz] [old-site-url]}
 [ -f "$dump" ] || { echo "No such file: $dump" >&2; exit 1; }
@@ -13,6 +13,9 @@ url=${WP_URL:-http://localhost:${WP_PORT:-8080}}
 wp() { docker compose run --rm -T cli "$@"; }
 
 docker compose up -d --wait db wordpress mailpit
+
+# Start from an empty database, so no table from an earlier site is left behind.
+wp db reset --yes
 
 case "$dump" in
   *.gz) gunzip -c "$dump" ;;
